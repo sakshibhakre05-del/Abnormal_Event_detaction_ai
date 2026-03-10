@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard | AI CCTV Surveillance</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;500;600&display=swap');
+
+        :root {
+            --primary: #38bdf8;
+            --secondary: #2563eb;
+            --danger: #ef4444;
+            --success: #22c55e;
+            --bg-dark: #020617;
+            --card-bg: rgba(15, 23, 42, 0.7);
+            --text-light: #f8fafc;
+            --text-dim: #94a3b8;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-light);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Ambient background */
+        .ambient-glow {
+            position: fixed;
+            width: 100vw;
+            height: 100vh;
+            top: 0;
+            left: 0;
+            z-index: -1;
+            background:
+                radial-gradient(circle at 5% 5%, rgba(56, 189, 248, 0.08) 0%, transparent 40%),
+                radial-gradient(circle at 95% 95%, rgba(37, 99, 235, 0.08) 0%, transparent 40%);
+        }
+
+        /* Navigation */
+        nav {
+            padding: 1.5rem 5%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .logo {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .user-name {
+            font-size: 0.9rem;
+            color: var(--text-dim);
+            font-weight: 500;
+        }
+
+        .logout-btn {
+            color: var(--danger);
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 0.85rem;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            background: rgba(239, 68, 68, 0.1);
+            transition: all 0.3s;
+        }
+
+        .logout-btn:hover {
+            background: var(--danger);
+            color: white;
+        }
+
+        /* Layout Grid */
+        .dashboard-container {
+            padding: 3rem 5%;
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 2.5rem;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        /* Main Viewport */
+        .viewport-card {
+            background: var(--card-bg);
+            border-radius: 24px;
+            padding: 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .viewport-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .viewport-header h2 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        #camera-dot {
+            width: 12px;
+            height: 12px;
+            background: #475569;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .camera-active #camera-dot {
+            background: var(--success);
+            box-shadow: 0 0 10px var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }
+
+        #video-feed {
+            width: 100%;
+            background: #000;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+            aspect-ratio: 16/9;
+            object-fit: cover;
+        }
+
+        .camera-status-bar {
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            text-align: center;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 700;
+            font-size: 1.2rem;
+            letter-spacing: 1px;
+            color: var(--text-dim);
+        }
+
+        /* Sidebar Controls */
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        .control-card {
+            background: var(--card-bg);
+            border-radius: 20px;
+            padding: 1.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .control-card h3 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.1rem;
+            margin-bottom: 1.25rem;
+            color: var(--primary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 0.85rem;
+            border: none;
+            border-radius: 10px;
+            font-weight: 700;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .btn-start {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-stop {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-start:hover,
+        .btn-stop:hover {
+            transform: translateY(-2px);
+            opacity: 0.9;
+        }
+
+        .upload-area {
+            border: 2px dashed rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+            margin-bottom: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        .upload-area:hover {
+            border-color: var(--primary);
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .file-label {
+            cursor: pointer;
+            color: var(--text-dim);
+            font-size: 0.85rem;
+        }
+
+        /* Alert Gallery */
+        .alert-gallery {
+            max-height: 400px;
+            overflow-y: auto;
+            padding-right: 5px;
+        }
+
+        .alert-gallery::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .alert-gallery::-webkit-scrollbar-thumb {
+            background: var(--primary);
+            border-radius: 10px;
+        }
+
+        .alert-item {
+            margin-bottom: 1rem;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            position: relative;
+        }
+
+        .alert-item img {
+            width: 100%;
+            display: block;
+            transition: transform 0.3s;
+        }
+
+        .alert-item:hover img {
+            transform: scale(1.1);
+        }
+
+        .alert-timestamp {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 5px 10px;
+            background: rgba(239, 68, 68, 0.8);
+            font-size: 0.7rem;
+            font-weight: 700;
+        }
+
+        @media (max-width: 1100px) {
+            .dashboard-container {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="ambient-glow"></div>
+
+    <nav>
+        <div class="logo">AI CCTV</div>
+        <div class="user-info">
+            <span class="user-name">Welcome, <strong>{{username}}</strong></span>
+            <a href="/logout" class="logout-btn">Sign Out</a>
+        </div>
+    </nav>
+
+    <div class="dashboard-container">
+        <!-- Main Monitor -->
+        <main class="viewport-card" id="viewport">
+            <div class="viewport-header">
+                <h2><span id="camera-dot"></span> LIVE MONITOR</h2>
+                <div id="status-badge" class="badge"
+                    style="padding: 0.4rem 0.8rem; background: rgba(255,255,255,0.05); border-radius: 5px; font-size: 0.8rem; font-weight: 600; color: #94a3b8;">
+                    SYSTEM READY</div>
+            </div>
+
+            <img id="video-feed" alt="Camera Feed">
+
+            <div class="camera-status-bar" id="status-shout">CAMERA OFF</div>
+
+            <audio id="alarm-sound" src="/static/alarm.mp3"></audio>
+        </main>
+
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <!-- Camera Controls -->
+            <div class="control-card">
+                <h3>System Control</h3>
+                <div class="btn-stack">
+                    <button class="btn btn-start" onclick="startCamera()">▶ START SYSTEM</button>
+                    <button class="btn btn-stop" onclick="stopCamera()">⏹ TERMINATE FEED</button>
+                </div>
+            </div>
+
+            <!-- Upload Analysis -->
+            <div class="control-card">
+                <h3>Video Forensics</h3>
+                <div class="upload-area">
+                    <label for="videoFile" class="file-label">
+                        <div style="font-size: 2rem; margin-bottom: 0.5rem;">📁</div>
+                        <span>Click to upload archive</span>
+                    </label>
+                    <input type="file" id="videoFile" accept="video/*" onchange="updateFileName(this)">
+                    <div id="file-name" style="font-size: 0.75rem; color: var(--primary); margin-top: 10px;"></div>
+                </div>
+                <button class="btn btn-primary" style="width: 100%; background: var(--secondary);"
+                    onclick="uploadVideo()">PROCESS FILE</button>
+                <div id="uploadMsg" style="font-size: 0.8rem; margin-top: 10px; font-weight: 500;"></div>
+            </div>
+
+            <!-- Threat Log -->
+            <div class="control-card">
+                <h3>Detected Anomalies</h3>
+                <div id="alertsContainer" class="alert-gallery">
+                    <p style="text-align: center; color: var(--text-dim); font-size: 0.9rem; margin-top: 2rem;">No
+                        entries found.</p>
+                </div>
+                <button class="btn btn-outline"
+                    style="width: 100%; margin-top: 1.5rem; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.1);"
+                    onclick="loadAlerts()">REFRESH LOG</button>
+            </div>
+        </aside>
+    </div>
+
+    <script>
+        const socket = io();
+        let alarmUnlocked = false;
+        const alarm = document.getElementById("alarm-sound");
+        const viewport = document.getElementById("viewport");
+        const statusShout = document.getElementById("status-shout");
+        const statusBadge = document.getElementById("status-badge");
+        const videoFeed = document.getElementById("video-feed");
+
+        document.getElementById("alertsContainer").innerHTML = "";
+
+        // Audio Unlock Helper
+        document.body.addEventListener("click", () => {
+            if (!alarmUnlocked) {
+                alarm.play().then(() => {
+                    alarm.pause();
+                    alarm.currentTime = 0;
+                    alarmUnlocked = true;
+                    console.log("Audio Diagnostic: Pass");
+                }).catch(() => { });
+            }
+        });
+
+        function updateFileName(input) {
+            document.getElementById('file-name').innerText = input.files[0] ? input.files[0].name : '';
+        }
+
+        function startCamera() {
+            socket.emit("start_camera");
+            viewport.classList.add('camera-active');
+            statusShout.innerText = "COUPILING STREAM...";
+            statusBadge.innerText = "INITIALIZING";
+        }
+
+        function stopCamera() {
+            socket.emit("stop_camera");
+            viewport.classList.remove('camera-active');
+            videoFeed.src = "";
+            statusShout.innerText = "CAMERA OFF";
+            statusShout.style.color = "var(--text-dim)";
+            statusBadge.innerText = "SYSTEM IDLE";
+            statusBadge.style.color = "#94a3b8";
+        }
+
+        socket.on("frame", (data) => {
+            videoFeed.src = "data:image/jpeg;base64," + data;
+        });
+
+        socket.on("status", (data) => {
+            if (data.state === "ABNORMAL") {
+                statusShout.innerText = "⚠️ THREAT DETECTED";
+                statusShout.style.color = "var(--danger)";
+                statusBadge.innerText = "ACTIVE ALERT";
+                statusBadge.style.color = "var(--danger)";
+                videoFeed.style.borderColor = "var(--danger)";
+            } else {
+                statusShout.innerText = "SCANNING: NORMAL";
+                statusShout.style.color = "var(--success)";
+                statusBadge.innerText = "CONNECTED";
+                statusBadge.style.color = "var(--success)";
+                videoFeed.style.borderColor = "var(--success)";
+            }
+        });
+
+        socket.on("alarm", () => {
+            if (alarmUnlocked) {
+                alarm.currentTime = 0;
+                alarm.play();
+                loadAlerts(); // Auto refresh on new alert
+            }
+        });
+
+        function uploadVideo() {
+            const file = document.getElementById("videoFile").files[0];
+            if (!file) return alert("Select forensics file.");
+
+            const msg = document.getElementById("uploadMsg");
+            msg.innerText = "Analyzing spatiotemporal data...";
+            msg.style.color = "var(--primary)";
+
+            const formData = new FormData();
+            formData.append("file", file);
+
+            fetch("/upload", { method: "POST", body: formData })
+                .then(res => res.json())
+                .then(data => {
+                    msg.innerText = data.msg;
+                    if (data.msg === "Abnormal detected") {
+                        msg.style.color = "var(--danger)";
+                        if (alarmUnlocked) alarm.play();
+                        loadAlerts();
+                    } else {
+                        msg.style.color = "var(--success)";
+                    }
+                });
+        }
+
+        function loadAlerts() {
+            fetch("/alerts_list")
+                .then(res => res.json())
+                .then(images => {
+                    const container = document.getElementById("alertsContainer");
+                    container.innerHTML = "";
+                    if (images.length === 0) {
+                        container.innerHTML = "<p style='text-align: center; color: var(--text-dim); padding: 2rem;'>Log is clear.</p>";
+                        return;
+                    }
+                    images.forEach(img => {
+                        const div = document.createElement("div");
+                        div.className = "alert-item";
+                        // Extract time from filename if possible (YYYYMMDD_HHMMSS)
+                        const timestamp = img.includes('_') ? img.split('_')[1].split('.')[0].replace(/(..)(..)(..)/, '$1:$2:$3') : 'Capture';
+                        div.innerHTML = `
+                            <img src="/frame/${img}?t=${new Date().getTime()}" alt="Anomaly">
+                            <div class="alert-timestamp">${timestamp} ALERT</div>
+                        `;
+                        container.appendChild(div);
+                    });
+                });
+        }
+
+        // Initial Load
+        loadAlerts();
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h2>Upload CCTV Video</h2>
+
+<form id="uploadForm" enctype="multipart/form-data">
+    <input type="file" name="video" accept="video/*" required>
+    <button type="submit" class="btn btn-success">Upload</button>
+</form>
+
+<h3 id="result"></h3>
+
+<script>
+document.getElementById("uploadForm").addEventListener("submit", async function(e){
+    e.preventDefault();
+
+    let formData = new FormData(this);
+
+    let response = await fetch("/upload_video", {
+        method: "POST",
+        body: formData
+    });
+
+    let data = await response.json();
+    document.getElementById("result").innerText =
+        "Abnormal Events Found: " + data.abnormal_events;
+});
+</script>
+
+<script>
+const socket = io();
+let alarmPlaying = false;
+const alarm = new Audio("/static/sounds/alarm.mp3");
+
+socket.on('update_status', function(data) {
+
+    if(data.label === "abnormal"){
+        if(!alarmPlaying){
+            alarm.play().catch(()=>{});
+            alarmPlaying = true;
+        }
+    } else {
+        alarm.pause();
+        alarm.currentTime = 0;
+        alarmPlaying = false;
+    }
+});
+</script>
+{% endblock %}
